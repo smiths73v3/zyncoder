@@ -102,6 +102,12 @@ void init_zynswitches() {
 	for (i=0;i<16;i++) setup_zynswitch(4+i, MCP23017_1_BASE_PIN + i, 1);
 	for (i=0;i<8;i++) setup_zynswitch(20+i, MCP23017_2_BASE_PIN + i, 1);
 	num_zynswitches = 28;
+	#ifndef ZYNAPTIK_CONFIG
+	fprintf(stderr, "ZynCore: Setting-up 2 x Zynswitches in RBPi GPIO...\n");
+	setup_zynswitch(num_zynswitches, 24, 1);
+	setup_zynswitch(num_zynswitches + 1, 23, 1);
+	num_zynswitches += 2;
+	#endif
 }
 
 //-----------------------------------------------------------------------------
