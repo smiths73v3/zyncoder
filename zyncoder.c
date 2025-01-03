@@ -615,7 +615,35 @@ void zynswitch_rbpi_ISR_4() { zynswitch_rbpi_ISR(4); }
 void zynswitch_rbpi_ISR_5() { zynswitch_rbpi_ISR(5); }
 void zynswitch_rbpi_ISR_6() { zynswitch_rbpi_ISR(6); }
 void zynswitch_rbpi_ISR_7() { zynswitch_rbpi_ISR(7); }
-void (*zynswitch_rbpi_ISRs[8])={
+void zynswitch_rbpi_ISR_8() { zynswitch_rbpi_ISR(8); }
+void zynswitch_rbpi_ISR_9() { zynswitch_rbpi_ISR(9); }
+void zynswitch_rbpi_ISR_10() { zynswitch_rbpi_ISR(10); }
+void zynswitch_rbpi_ISR_11() { zynswitch_rbpi_ISR(11); }
+void zynswitch_rbpi_ISR_12() { zynswitch_rbpi_ISR(12); }
+void zynswitch_rbpi_ISR_13() { zynswitch_rbpi_ISR(13); }
+void zynswitch_rbpi_ISR_14() { zynswitch_rbpi_ISR(14); }
+void zynswitch_rbpi_ISR_15() { zynswitch_rbpi_ISR(15); }
+void zynswitch_rbpi_ISR_16() { zynswitch_rbpi_ISR(16); }
+void zynswitch_rbpi_ISR_17() { zynswitch_rbpi_ISR(17); }
+void zynswitch_rbpi_ISR_18() { zynswitch_rbpi_ISR(18); }
+void zynswitch_rbpi_ISR_19() { zynswitch_rbpi_ISR(19); }
+void zynswitch_rbpi_ISR_20() { zynswitch_rbpi_ISR(20); }
+void zynswitch_rbpi_ISR_21() { zynswitch_rbpi_ISR(21); }
+void zynswitch_rbpi_ISR_22() { zynswitch_rbpi_ISR(22); }
+void zynswitch_rbpi_ISR_23() { zynswitch_rbpi_ISR(23); }
+void zynswitch_rbpi_ISR_24() { zynswitch_rbpi_ISR(24); }
+void zynswitch_rbpi_ISR_25() { zynswitch_rbpi_ISR(25); }
+void zynswitch_rbpi_ISR_26() { zynswitch_rbpi_ISR(26); }
+void zynswitch_rbpi_ISR_27() { zynswitch_rbpi_ISR(27); }
+void zynswitch_rbpi_ISR_28() { zynswitch_rbpi_ISR(28); }
+void zynswitch_rbpi_ISR_29() { zynswitch_rbpi_ISR(29); }
+void zynswitch_rbpi_ISR_30() { zynswitch_rbpi_ISR(30); }
+void zynswitch_rbpi_ISR_31() { zynswitch_rbpi_ISR(31); }
+void zynswitch_rbpi_ISR_32() { zynswitch_rbpi_ISR(32); }
+void zynswitch_rbpi_ISR_33() { zynswitch_rbpi_ISR(33); }
+void zynswitch_rbpi_ISR_34() { zynswitch_rbpi_ISR(34); }
+void zynswitch_rbpi_ISR_35() { zynswitch_rbpi_ISR(35); }
+void (*zynswitch_rbpi_ISRs[36])={
 	zynswitch_rbpi_ISR_0,
 	zynswitch_rbpi_ISR_1,
 	zynswitch_rbpi_ISR_2,
@@ -623,9 +651,36 @@ void (*zynswitch_rbpi_ISRs[8])={
 	zynswitch_rbpi_ISR_4,
 	zynswitch_rbpi_ISR_5,
 	zynswitch_rbpi_ISR_6,
-	zynswitch_rbpi_ISR_7
+	zynswitch_rbpi_ISR_7,
+	zynswitch_rbpi_ISR_8,
+	zynswitch_rbpi_ISR_9,
+	zynswitch_rbpi_ISR_10,
+	zynswitch_rbpi_ISR_11,
+	zynswitch_rbpi_ISR_12,
+	zynswitch_rbpi_ISR_13,
+	zynswitch_rbpi_ISR_14,
+	zynswitch_rbpi_ISR_15,
+	zynswitch_rbpi_ISR_16,
+	zynswitch_rbpi_ISR_17,
+	zynswitch_rbpi_ISR_18,
+	zynswitch_rbpi_ISR_19,
+	zynswitch_rbpi_ISR_20,
+	zynswitch_rbpi_ISR_21,
+	zynswitch_rbpi_ISR_22,
+	zynswitch_rbpi_ISR_23,
+	zynswitch_rbpi_ISR_24,
+	zynswitch_rbpi_ISR_25,
+	zynswitch_rbpi_ISR_26,
+	zynswitch_rbpi_ISR_27,
+	zynswitch_rbpi_ISR_28,
+	zynswitch_rbpi_ISR_29,
+	zynswitch_rbpi_ISR_30,
+	zynswitch_rbpi_ISR_31,
+	zynswitch_rbpi_ISR_32,
+	zynswitch_rbpi_ISR_33,
+	zynswitch_rbpi_ISR_34,
+	zynswitch_rbpi_ISR_35
 };
-
 
 void zyncoder_rbpi_ISR(uint8_t i) {
 	if (i>=MAX_NUM_ZYNCODERS) return;

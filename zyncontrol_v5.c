@@ -37,6 +37,9 @@
 
 #ifdef ZYNAPTIK_CONFIG
 #include "zynaptik.h"
+#else
+#define RBPI_GPIO_EXT1  24 // wiringPi 4
+#define RBPI_GPIO_EXT2  23 // wiringPi 5
 #endif
 
 //-----------------------------------------------------------------------------
@@ -104,8 +107,8 @@ void init_zynswitches() {
 	num_zynswitches = 28;
 	#ifndef ZYNAPTIK_CONFIG
 	fprintf(stderr, "ZynCore: Setting-up 2 x Zynswitches in RBPi GPIO...\n");
-	setup_zynswitch(num_zynswitches, 24, 1);
-	setup_zynswitch(num_zynswitches + 1, 23, 1);
+	setup_zynswitch(num_zynswitches, RBPI_GPIO_EXT1, 1);
+	setup_zynswitch(num_zynswitches + 1, RBPI_GPIO_EXT2, 1);
 	num_zynswitches += 2;
 	#endif
 }
