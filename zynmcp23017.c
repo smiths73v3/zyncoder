@@ -378,9 +378,7 @@ void zynmcp23017_ISR(uint8_t i, uint8_t bank) {
 	}
 	if (!zynmcp23017s[i].enabled) return;
 
-	#ifdef DEBUG
-	fprintf(stderr, "zyncoder_mcp23017_ISR(%d, %d)\n", i, bank);
-	#endif
+	//fprintf(stderr, "zyncoder_mcp23017_ISR(%d, %d)\n", i, bank);
 
 	uint16_t pin_offset;
 	uint16_t reg;

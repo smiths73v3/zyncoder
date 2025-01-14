@@ -402,6 +402,7 @@ void reset_zyncoders() {
 	for (i=0;i<MAX_NUM_ZYNCODERS;i++) {
 		zyncoders[i].enabled = 0;
 		zyncoders[i].value = 0;
+		zyncoders[i].subvalue = 0;
  		zyncoders[i].zpot_i = -1;
  		zyncoders[i].short_history = 0;
  		zyncoders[i].long_history = 0;
@@ -420,10 +421,9 @@ int get_num_zyncoders() {
 
 void update_zyncoder(uint8_t i, uint8_t msb, uint8_t lsb) {
 	zyncoder_t *zcdr = zyncoders + i;
-
+	int8_t dval = 0;
 	//fprintf(stderr, "ZynCore->update_zyncoder(%d, %d, %d)\n", i, msb, lsb);
 
-	// step == 0 so use software filter algorithm and speed based scaling
 	// Shift last read state to top of short history
 	zcdr->short_history <<= 2;
 	// Add current state to bottom of short history
@@ -432,44 +432,80 @@ void update_zyncoder(uint8_t i, uint8_t msb, uint8_t lsb) {
 	if (!lsb)
 		zcdr->short_history |= 0x01;
 	zcdr->short_history &= 0x0f; // Mask short history to 4 bits
+
 	// Look up in table for valid transition from previous to current state
 	if (valid_quadrant_states[zcdr->short_history]) {
 		// Shift previous valid transition and store this transition in long history
 		zcdr->long_history <<= 4;
 		zcdr->long_history |= zcdr->short_history;
-		int8_t dval = 0;
-		if (zcdr->long_history == 0xd4) {
-			// Last transition in CW direction before rest detent
-			dval = 1;
+		//fprintf(stderr, "Long History => 0x%x\n", zcdr->long_history);
+		switch (zcdr->long_history) {
+			case 0xd4:
+				// Last transition in CW direction before rest detent
+				dval = 1;
+				zcdr->subvalue = 0;
+				break;
+			case 0xe8:
+				// Last transition in CCW direction before rest detent
+				dval = -1;
+				zcdr->subvalue = 0;
+				break;
+			case 0x82:
+			case 0x28:
+			case 0xe4:
+			case 0x42:
+			case 0x2b:
+			case 0xbd:
+				zcdr->subvalue++;
+				return;
+			case 0x81:
+			case 0x18:
+			case 0x41:
+			case 0x14:
+			case 0x17:
+			case 0x7e:
+				zcdr->subvalue--;
+				return;
+			default:
+				// Not at rest detent so ignore - if want finer resolution could count every quadrant of detent, not just rest detent
+				//fprintf(stderr, "Not a rest detent!\n");
+				return;
 		}
-		else if (zcdr->long_history == 0xe8) {
-			// Last transition in CCW direction before rest detent
+	} else {
+		//fprintf(stderr, "Invalid transition state! => 0x%x\n", zcdr->short_history);
+		if (zcdr->subvalue > 0) {
+			dval = 1;
+			zcdr->subvalue = 0;
+		} else if (zcdr->subvalue < 0) {
 			dval = -1;
+			zcdr->subvalue = 0;
 		} else {
-			// Not at rest detent so ignore - if want finer resolution could count every quadrant of detent, not just rest detent
 			return;
 		}
-		if (zcdr->step) {
-			dval *= zcdr->step;
-		} else {
-			//Get time interval from last tick
-			struct timespec ts;
-			uint64_t tsms;
-			clock_gettime(CLOCK_MONOTONIC, &ts);
-			tsms = ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
-			int64_t dtms = tsms - zcdr->tsms; // milliseconds since last encoder change
-			// Rotation acceleration
-			if (dtms < 40)
-				dval *= (((40 - dtms) / 10) + 1);
-			zcdr->tsms = tsms;
-		}
-		zcdr->value += dval;
+	}
 
-		//Call CB function
-		if (zynpot_cb) {
-			zynpot_cb(zcdr->zpot_i, zcdr->value);
-			zcdr->value = 0;
-		}
+	// step > 0 => use fixed scaling
+	if (zcdr->step) {
+		dval *= zcdr->step;
+	// step == 0 => use speed based scaling
+	} else {
+		//Get time interval from last tick
+		struct timespec ts;
+		uint64_t tsms;
+		clock_gettime(CLOCK_MONOTONIC, &ts);
+		tsms = ts.tv_sec * 1000000000 + ts.tv_nsec;
+		int64_t dtms = tsms - zcdr->tsms; // nanoseconds since last encoder change
+		// Rotation acceleration
+		if (dtms < 40000000)
+			dval *= (((40000000 - dtms) / 10000000) + 1);
+		zcdr->tsms = tsms;
+	}
+	zcdr->value += dval;
+
+	//Call CB function
+	if (zynpot_cb) {
+		zynpot_cb(zcdr->zpot_i, zcdr->value);
+		zcdr->value = 0;
 	}
 }
 
@@ -484,6 +520,7 @@ int setup_zyncoder(uint8_t i, uint16_t pin_a, uint16_t pin_b) {
 	zcdr->enabled = 0;
 	zcdr->step = 1;
 	zcdr->value = 0;
+	zcdr->subvalue = 0;
 	zcdr->tsms = 0;
 	zcdr->short_history = 0;
 	zcdr->long_history = 0;

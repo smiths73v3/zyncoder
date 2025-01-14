@@ -82,6 +82,7 @@ typedef struct zyncoder_st {
 	uint8_t enabled;			// 1 to enable encoder
 	int32_t step;				// Size of change in value for each detent of encoder
 	int32_t value;				// Current encdoder value
+	int32_t subvalue;			// Current encdoder subvalue => inter-detent value
 	int8_t zpot_i;				// Zynpot index assigned to this encoder
 
 	// Next fields are zyncoder-specific
