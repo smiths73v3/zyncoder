@@ -422,7 +422,17 @@ int get_num_zyncoders() {
 void update_zyncoder(uint8_t i, uint8_t msb, uint8_t lsb) {
 	zyncoder_t *zcdr = zyncoders + i;
 	int8_t dval = 0;
-	//fprintf(stderr, "ZynCore->update_zyncoder(%d, %d, %d)\n", i, msb, lsb);
+	fprintf(stderr, "ZynCore->update_zyncoder(%d, %d, %d)\n", i, msb, lsb);
+
+	//Get time interval from last tick
+	struct timespec ts;
+	clock_gettime(CLOCK_MONOTONIC, &ts);
+	uint64_t tsms = ts.tv_sec * 1000000000 + ts.tv_nsec;
+	int64_t dtms = tsms - zcdr->tsms; // nanoseconds since last encoder change
+
+	if (dtms < 1000000) {
+		fprintf(stderr, "Debouncing!\n");
+	}
 
 	// Shift last read state to top of short history
 	zcdr->short_history <<= 2;
@@ -489,12 +499,6 @@ void update_zyncoder(uint8_t i, uint8_t msb, uint8_t lsb) {
 		dval *= zcdr->step;
 	// step == 0 => use speed based scaling
 	} else {
-		//Get time interval from last tick
-		struct timespec ts;
-		uint64_t tsms;
-		clock_gettime(CLOCK_MONOTONIC, &ts);
-		tsms = ts.tv_sec * 1000000000 + ts.tv_nsec;
-		int64_t dtms = tsms - zcdr->tsms; // nanoseconds since last encoder change
 		// Rotation acceleration
 		if (dtms < 40000000)
 			dval *= (((40000000 - dtms) / 10000000) + 1);
