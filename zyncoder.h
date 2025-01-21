@@ -93,7 +93,8 @@ typedef struct zyncoder_st {
 	uint8_t short_history;      // Quadrant encoder algorithm last two valid states (4 bits)
 	uint8_t long_history;       // Quadrant encoder algorithm last four valid states (8 bits)
 
-	uint64_t tsms;				// Absolute time of last encoder change in milliseconds
+	uint64_t tsms;				// Absolute time of last encoder change in nanoseconds
+	uint64_t tsms_detent;		// Absolute time of last encoder detent in nanoseconds
 } zyncoder_t;
 
 //-----------------------------------------------------------------------------
