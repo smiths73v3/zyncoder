@@ -46,6 +46,7 @@ int midi_system_events;					// Flag to enable/disable system events globally
 int midi_learning_mode;					// To flag "MIDI learning" from UI => Is it needed?
 int8_t global_transpose;     			// All incoming (zmip) notes are transposed
 jack_nframes_t last_frame;				// Index of last frame in each jack cycle
+uint32_t pedal_sent[4];					// Bitwise flag indicating if CC value>0 sent to a chain zmop for each pedal type
 
 midi_filter_t midi_filter;
 struct zmip_st zmips[MAX_NUM_ZMIPS];
@@ -69,6 +70,8 @@ int init_zynmidirouter() {
 	midi_system_events = 1;
 	midi_learning_mode = 0;
 	global_transpose = 0;
+	for (uint8_t i = 0; i < 4; ++i)
+		pedal_sent[i] = 0;
 
 	if (!init_zynmidi_buffer())
 		return 0;
@@ -117,13 +120,40 @@ int end_midi_router() {
 // Global settings management
 //-----------------------------------------------------------------------------
 
-void set_active_chain(int iz) {
-	if (iz >= NUM_ZMOP_CHAINS || iz < -1) {
-		fprintf(stderr, "ZynMidiRouter: Active chain (%d) is out of range!\n", iz);
+void set_active_chain(int izmop) {
+	if (izmop >= NUM_ZMOP_CHAINS || izmop < -1) {
+		fprintf(stderr, "ZynMidiRouter: Active chain (%d) is out of range!\n", izmop);
 		return;
 	}
-	if (iz != active_chain) {
-		active_chain = iz;
+	if (izmop != active_chain) {
+		active_chain = izmop;
+		if (izmop >= 0 && zmops[izmop].midi_chan >= 0) {
+			uint8_t buffer[3];
+			buffer[0] = 0xB0 + zmops[izmop].midi_chan;
+
+			for (uint8_t pedal = 0; pedal < 4; ++pedal) {
+				if (pedal_sent[pedal] & (1 << izmop))
+					continue; // Don't resend pedal CC if already asserted for this chain zmop
+				uint8_t looking_for_pedal = 1;
+				for (uint8_t izmip = 0; (izmip < NUM_ZMIP_DEVS) && looking_for_pedal; ++izmip) {
+					if (!zmop_get_route_from(izmop, izmip))
+						continue; // Input disabled for this chain
+					for (uint8_t midi_chan = 0; midi_chan < 16; ++midi_chan) {
+						//!@todo Optimise this by storing pedal state of all channels in zmip structure
+						if (zmips[izmip].last_ctrl_val[midi_chan][pedal_cc[pedal]]) {
+							// Found an enabled zmip with this pedal pressed so reassert pedal press for newly selected chain zmop
+							buffer[1] = pedal_cc[pedal];
+							buffer[2] = zmips[izmip].last_ctrl_val[midi_chan][pedal_cc[pedal]];
+							pedal_sent[pedal] |= (1 << izmop);
+							if (!write_rb_midi_event(zmops[izmop].rbuffer, buffer, 3))
+								return; // Error but active chain is set
+							looking_for_pedal = 0;
+							break;
+						}
+					}
+				}
+			}
+		}
 	}
 }
 
@@ -133,6 +163,8 @@ int get_active_chain() {
 
 void set_active_midi_chan(int flag) {
 	active_midi_chan = flag;
+	for (uint8_t izmip = 0; izmip < MAX_NUM_ZMIPS; ++izmip)
+		clear_cc_pedals(izmip);
 }
 
 int get_active_midi_chan() {
@@ -441,15 +473,36 @@ int zmip_get_flag_cc_auto_mode(int iz) {
 	return (zmips[iz].flags & (uint32_t)FLAG_ZMIP_CC_AUTO_MODE) > 0;
 }
 
-int zmip_set_flag_active_chain(int iz, uint8_t flag) {
-	if (iz < 0 || iz >= MAX_NUM_ZMIPS) {
-		fprintf(stderr, "ZynMidiRouter: Bad input port number (%d).\n", iz);
+int clear_cc_pedals(uint8_t izmip) {
+	uint8_t buffer[3];
+	buffer[2] = 0;
+	for (uint8_t izmop = 0; izmop < MAX_NUM_ZMOPS; ++izmop) {
+		if (!zmop_get_route_from(izmop, izmip))
+			continue;
+		buffer[0] = 0xB0 + zmops[izmop].midi_chan;
+		for (uint8_t pedal = 0; pedal < 4; ++pedal) {
+			if (pedal_sent[pedal] & (1 << izmop)) {
+				buffer[1] = pedal_cc[pedal];
+				if (!write_rb_midi_event(zmops[izmop].rbuffer, buffer, 3))
+					return 0;
+				pedal_sent[pedal] &= ~(1 << izmop);
+				fprintf(stderr, "Cleared pedal %d for chain izmop %d\n", pedal, izmop);
+			}
+		}
+	}
+	return 1;
+}
+
+int zmip_set_flag_active_chain(int izmip, uint8_t flag) {
+	if (izmip < 0 || izmip >= MAX_NUM_ZMIPS) {
+		fprintf(stderr, "ZynMidiRouter: Bad input port number (%d).\n", izmip);
 		return 0;
 	}
 	if (flag)
-		zmips[ZMIP_DEV0 + iz].flags |= (uint32_t)FLAG_ZMIP_ACTIVE_CHAIN;
+		zmips[ZMIP_DEV0 + izmip].flags |= (uint32_t)FLAG_ZMIP_ACTIVE_CHAIN;
 	else
-		zmips[ZMIP_DEV0 + iz].flags &= ~(uint32_t)FLAG_ZMIP_ACTIVE_CHAIN;
+		zmips[ZMIP_DEV0 + izmip].flags &= ~(uint32_t)FLAG_ZMIP_ACTIVE_CHAIN;
+	clear_cc_pedals(izmip);
 	//fprintf(stderr, "ZynMidiRouter: Flags for zmip (%d) => %x\n", iz, zmips[ZMIP_DEV0 + iz].flags);
 	return 1;
 }
@@ -731,23 +784,23 @@ int zmop_get_flag_chan_transfilter(int iz) {
 
 // MIDI channel management
 
-int zmop_reset_midi_chans(int iz) {
-	if (iz < 0 || iz >= MAX_NUM_ZMOPS) {
-		fprintf(stderr, "ZynMidiRouter: Bad output port index (%d).\n", iz);
+int zmop_reset_midi_chans(int izmip) {
+	if (izmip < 0 || izmip >= MAX_NUM_ZMOPS) {
+		fprintf(stderr, "ZynMidiRouter: Bad output port index (%d).\n", izmip);
 		return 0;
 	}
 	int i;
 	for (i = 0; i < 16; i++) {
-		zmops[iz].midi_chans[i] = -1;
+		zmops[izmip].midi_chans[i] = -1;
 	}
-	zmops[iz].midi_chan = -1;
-	zmop_set_flag_chan_transfilter(iz, 1);
+	zmops[izmip].midi_chan = -1;
+	zmop_set_flag_chan_transfilter(izmip, 1);
 	return 1;
 }
 
-int zmop_set_midi_chan(int iz, int midi_chan) {
-	if (iz < 0 || iz >= MAX_NUM_ZMOPS) {
-		fprintf(stderr, "ZynMidiRouter: Bad output port index (%d).\n", iz);
+int zmop_set_midi_chan(int izmip, int midi_chan) {
+	if (izmip < 0 || izmip >= MAX_NUM_ZMOPS) {
+		fprintf(stderr, "ZynMidiRouter: Bad output port index (%d).\n", izmip);
 		return 0;
 	}
 	if (midi_chan < 0 || midi_chan >= 16) {
@@ -756,11 +809,12 @@ int zmop_set_midi_chan(int iz, int midi_chan) {
 	}
 	int i;
 	for (i = 0; i < 16; i++) {
-		zmops[iz].midi_chans[i] = -1;
+		zmops[izmip].midi_chans[i] = -1;
 	}
-	zmops[iz].midi_chan = midi_chan;
-	zmops[iz].midi_chans[midi_chan] = midi_chan;
-	zmop_set_flag_chan_transfilter(iz, 1);
+	zmops[izmip].midi_chan = midi_chan;
+	zmops[izmip].midi_chans[midi_chan] = midi_chan;
+	zmop_set_flag_chan_transfilter(izmip, 1);
+	clear_cc_pedals(izmip);
 	return 1;
 }
 
@@ -875,6 +929,7 @@ int zmop_set_route_from(int izmop, int izmip, int route) {
 		return 0;
 	}
 	zmops[izmop].route_from_zmips[izmip] = route;
+	clear_cc_pedals(izmip);
 	return 1;
 }
 
@@ -1464,6 +1519,13 @@ int jack_process(jack_nframes_t nframes, void *arg) {
 			// Channel messages ...
 			if (event_type < SYSTEM_EXCLUSIVE) {
 				event_chan_trans = event_chan;
+				uint8_t pedal = 4;
+				if (event_type == CTRL_CHANGE) {
+					for (pedal = 0; pedal < 4; ++pedal) {
+						if (event_num == pedal_cc[pedal])
+							break;
+					}
+				}
 				// If zmop have enabled Channel Translation / Channel Filtering (ACTI/MULTI) and
 				// has a single midi_chan (aka it's not using multi-channel mapping! => ALL CHANS)
 				if (zmop->flags & FLAG_ZMOP_CHAN_TRANSFILTER && zmop->midi_chan >= 0) {
@@ -1483,10 +1545,25 @@ int jack_process(jack_nframes_t nframes, void *arg) {
 										int xiz = (izmop + j) % NUM_ZMOP_CHAINS;
 										// If found a matching note-on for this note-off event on other chain
 										if (zmops[xiz].note_state[event_num] > 0 && zmops[xiz].midi_chan >= 0 && zmops[xiz].n_connections > 0  && zmops[xiz].route_from_zmips[izmip]) {
-											zmop = 	zmops + xiz;
+											zmop =  zmops + xiz;
 											break;
 										}
 									}
+								}
+							} else if (pedal < 4) {
+								if ((!active_midi_chan && active_chain == izmop && zmop_get_route_from(izmop, izmip))) {
+									// Active chain only
+									if (event_val)
+										pedal_sent[pedal] |= (1 << izmop);
+									else {
+										for (uint8_t i = 0; i < MAX_NUM_ZMOPS; ++i) {
+											if (i != izmop && pedal_sent[pedal] & (1 << i))
+												zmop_send_ccontrol_change(i, zmops[i].midi_chan, pedal_cc[pedal], 0);
+										}
+										pedal_sent[pedal] = 0;
+									}
+								} else {
+									continue;
 								}
 							}
 							// Update event data with the translated MIDI channel
@@ -1515,7 +1592,7 @@ int jack_process(jack_nframes_t nframes, void *arg) {
 				}
 
 				// Drop "CC messages" if configured in zmop options, except from internal sources (UI, etc.)
-				if (event_type == CTRL_CHANGE && (zmop->flags & FLAG_ZMOP_DROPCC && zmop->cc_route[event_num] == 0) && izmip <= ZMIP_CTRL)
+				if (event_type == CTRL_CHANGE && pedal > 3 && (zmop->flags & FLAG_ZMOP_DROPCC && zmop->cc_route[event_num] == 0) && izmip <= ZMIP_CTRL)
 					goto zmop_event_processed;
 
 				// Drop "Program Change" if configured in zmop options, except from internal sources (UI)
@@ -1763,12 +1840,12 @@ int zmip_send_pitchbend_change(uint8_t iz, uint8_t chan, uint16_t pb) {
 	return zmip_send_midi_event(iz, buffer, 3);
 }
 
-int zmip_send_all_notes_off(uint8_t iz) {
-	if (iz >= MAX_NUM_ZMIPS) {
-		fprintf(stderr, "ZynMidiRouter: Bad input port index (%d).\n", iz);
+int zmip_send_all_notes_off(uint8_t izmip) {
+	if (izmip >= MAX_NUM_ZMIPS) {
+		fprintf(stderr, "ZynMidiRouter: Bad input port index (%d).\n", izmip);
 		return 0;
 	}
-	int izmop, chan, note;
+	int izmop, chan, note, pedal;
 	uint8_t buffer[3];
 	buffer[2] = 0;
 	for (izmop = 0; izmop < ZMOP_CTRL; izmop++) {
@@ -1778,20 +1855,21 @@ int zmip_send_all_notes_off(uint8_t iz) {
 		for (note = 0; note < 128; note++) {
 			buffer[1] = note;
 			if (zmops[izmop].note_state[note] > 0)
-				if (!write_rb_midi_event(zmips[iz].rbuffer, buffer, 3))
+				if (!write_rb_midi_event(zmips[izmip].rbuffer, buffer, 3))
 					return 0;
 		}
 	}
+	clear_cc_pedals(izmip);
 	return 1;
 }
 
-int zmip_send_all_notes_off_chain(uint8_t iz, uint8_t izmop) {
-	if (iz >= MAX_NUM_ZMIPS) {
-		fprintf(stderr, "ZynMidiRouter: Bad input port index (%d).\n", iz);
+int zmip_send_all_notes_off_chain(uint8_t izmip, uint8_t izmop) {
+	if (izmip >= MAX_NUM_ZMIPS) {
+		fprintf(stderr, "ZynMidiRouter: Bad input port index (%d).\n", izmip);
 		return 0;
 	}
 	if (izmop >= ZMOP_CTRL) {
-		fprintf(stderr, "ZynMidiRouter:zmip_send_all_notes_off_chain(%d, zmop) => zmop (%d) is out of range!\n", iz, izmop);
+		fprintf(stderr, "ZynMidiRouter:zmip_send_all_notes_off_chain(%d, zmop) => zmop (%d) is out of range!\n", izmip, izmop);
 		return 0;
 	}
 	uint8_t note;
@@ -1803,9 +1881,10 @@ int zmip_send_all_notes_off_chain(uint8_t iz, uint8_t izmop) {
 	for (note = 0; note < 128; note++) {
 		buffer[1] = note;
 		if (zmops[izmop].note_state[note] > 0)
-			if (!write_rb_midi_event(zmips[iz].rbuffer, buffer, 3))
+			if (!write_rb_midi_event(zmips[izmip].rbuffer, buffer, 3))
 				return 0;
 	}
+	clear_cc_pedals(izmip);
 	return 1;
 }
 

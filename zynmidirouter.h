@@ -4,7 +4,7 @@
  * 
  * MIDI router library: Implements the MIDI router & filter 
  * 
- * Copyright (C) 2015-2018 Fernando Moyano <jofemodo@zynthian.org>
+ * Copyright (C) 2015-2025 Fernando Moyano <jofemodo@zynthian.org>
  *
  * ******************************************************************
  * 
@@ -215,6 +215,8 @@ struct zmip_st {
 	uint8_t last_ctrl_val[16][128];			// Last CC value tracked for each CC x 16 chans
 };
 
+static const uint8_t pedal_cc[] = {64, 66, 67, 69}; // List of CC that should be treated as pedals
+
 // MIDI Input port (ZMIPs) management
 int zmip_init(int iz, char *name, uint32_t flags);
 int zmip_end(int iz);
@@ -223,6 +225,7 @@ int zmip_get_seq_index();
 int zmip_get_step_index();
 int zmip_get_int_index();
 int zmip_get_ctrl_index();
+int clear_cc_pedals(uint8_t izmip);
 
 // Flag management
 int zmip_set_flags(int iz, uint32_t flags);
@@ -283,7 +286,7 @@ int zmip_set_route_chains(int iz, int route);			// Route/un-route a MIDI input p
 #define ZMOP_DEV22 41
 #define ZMOP_DEV23 42
 #define MAX_NUM_ZMOPS 43
-#define NUM_ZMOP_CHAINS 17
+#define NUM_ZMOP_CHAINS 17 // Do not exceed 32 - use uint32_t bitwise flags for chain flags
 #define NUM_ZMOP_DEVS 24
 
 #define FLAG_ZMOP_DROPPC 1
