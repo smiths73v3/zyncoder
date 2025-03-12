@@ -235,6 +235,7 @@ int zmop_set_flag_cc_auto_mode(int iz, uint8_t flag);
 uint8_t zmop_get_flag_cc_auto_mode(int iz);
 int zmip_set_flag_active_chain(int iz, uint8_t flag);
 int zmip_get_flag_active_chain(int iz);
+uint32_t get_cc_pedal(uint8_t pedal);
 // Routing
 int zmip_set_route_chains(int iz, int route);			// Route/un-route a MIDI input port (zmip) to/from *ALL* zmop chains
 

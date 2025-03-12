@@ -486,7 +486,6 @@ int clear_cc_pedals(uint8_t izmip) {
 				if (!write_rb_midi_event(zmops[izmop].rbuffer, buffer, 3))
 					return 0;
 				pedal_sent[pedal] &= ~(1 << izmop);
-				fprintf(stderr, "Cleared pedal %d for chain izmop %d\n", pedal, izmop);
 			}
 		}
 	}
@@ -513,6 +512,12 @@ int zmip_get_flag_active_chain(int iz) {
 		return 0;
 	}
 	return zmips[ZMIP_DEV0 + iz].flags & (uint32_t)FLAG_ZMIP_ACTIVE_CHAIN;
+}
+
+uint32_t get_cc_pedal(uint8_t pedal) {
+	if (pedal < 4)
+		return pedal_sent[pedal];
+	return 0;
 }
 
 //Route/unroute a MIDI input device (zmip) to *ALL* chain zmops
@@ -1592,7 +1597,7 @@ int jack_process(jack_nframes_t nframes, void *arg) {
 				}
 
 				// Drop "CC messages" if configured in zmop options, except from internal sources (UI, etc.)
-				if (event_type == CTRL_CHANGE && pedal > 3 && (zmop->flags & FLAG_ZMOP_DROPCC && zmop->cc_route[event_num] == 0) && izmip <= ZMIP_CTRL)
+				if (event_type == CTRL_CHANGE && (zmop->flags & FLAG_ZMOP_DROPCC && zmop->cc_route[event_num] == 0) && izmip <= ZMIP_CTRL)
 					goto zmop_event_processed;
 
 				// Drop "Program Change" if configured in zmop options, except from internal sources (UI)
