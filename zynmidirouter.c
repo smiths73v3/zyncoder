@@ -1565,14 +1565,14 @@ int jack_process(jack_nframes_t nframes, void *arg) {
 									}
 								}
 							} else if (pedal < 4) {
-								if (active_midi_chan || (!active_midi_chan && active_chain == izmop && zmop_get_route_from(izmop, izmip))) {
+								if (active_midi_chan || active_chain == izmop && zmop_get_route_from(izmop, izmip)) {
 									// Active chain only
 									if (event_val)
 										pedal_sent[pedal] |= (1 << izmop);
 									else {
-										for (uint8_t i = 0; i < MAX_NUM_ZMOPS; ++i) {
-											if (i != izmop && pedal_sent[pedal] & (1 << i))
-												zmop_send_ccontrol_change(i, zmops[i].midi_chan, pedal_cc[pedal], 0);
+										for (uint8_t j = 0; j < NUM_ZMOP_CHAINS; ++j) {
+											if (j != izmop && pedal_sent[pedal] & (1 << j))
+												zmop_send_ccontrol_change(j, zmops[j].midi_chan, pedal_cc[pedal], 0);
 										}
 										pedal_sent[pedal] = 0;
 									}
