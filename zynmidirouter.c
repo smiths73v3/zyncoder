@@ -144,9 +144,18 @@ void set_active_chain(int izmop) {
 							// Found an enabled zmip with this pedal pressed so reassert pedal press for newly selected chain zmop
 							buffer[1] = pedal_cc[pedal];
 							buffer[2] = zmips[izmip].last_ctrl_val[midi_chan][pedal_cc[pedal]];
-							pedal_sent[pedal] |= (1 << izmop);
-							if (!write_rb_midi_event(zmops[izmop].rbuffer, buffer, 3))
+							if (active_midi_chan) {
+								// Set other chains with same MIDI channel
+								for (uint8_t i = 0; i < NUM_ZMOP_CHAINS; ++i) {
+									if (zmops[i].midi_chan == zmops[izmop].midi_chan) {
+										if (!write_rb_midi_event(zmops[i].rbuffer, buffer, 3))
+											return; // Error but active chain is set
+										pedal_sent[pedal] |= (1 << i);
+										}
+								}
+							} else if (!write_rb_midi_event(zmops[izmop].rbuffer, buffer, 3))
 								return; // Error but active chain is set
+							pedal_sent[pedal] |= (1 << izmop);
 							looking_for_pedal = 0;
 							break;
 						}
@@ -476,7 +485,7 @@ int zmip_get_flag_cc_auto_mode(int iz) {
 int clear_cc_pedals(uint8_t izmip) {
 	uint8_t buffer[3];
 	buffer[2] = 0;
-	for (uint8_t izmop = 0; izmop < MAX_NUM_ZMOPS; ++izmop) {
+	for (uint8_t izmop = 0; izmop < NUM_ZMOP_CHAINS; ++izmop) {
 		if (!zmop_get_route_from(izmop, izmip))
 			continue;
 		buffer[0] = 0xB0 + zmops[izmop].midi_chan;
@@ -1512,6 +1521,7 @@ int jack_process(jack_nframes_t nframes, void *arg) {
 		uint8_t event_chan_trans;
 		for (int izmop = 0; izmop < MAX_NUM_ZMOPS; ++izmop) {
 			zmop = zmops + izmop;
+			uint8_t pedal = 4;
 
 			// Don't waste CPU cycles with unconnected output ports. Nobody is listening there!!
 			if (zmop->n_connections==0)
@@ -1524,7 +1534,6 @@ int jack_process(jack_nframes_t nframes, void *arg) {
 			// Channel messages ...
 			if (event_type < SYSTEM_EXCLUSIVE) {
 				event_chan_trans = event_chan;
-				uint8_t pedal = 4;
 				if (event_type == CTRL_CHANGE) {
 					for (pedal = 0; pedal < 4; ++pedal) {
 						if (event_num == pedal_cc[pedal])
@@ -1556,7 +1565,7 @@ int jack_process(jack_nframes_t nframes, void *arg) {
 									}
 								}
 							} else if (pedal < 4) {
-								if ((!active_midi_chan && active_chain == izmop && zmop_get_route_from(izmop, izmip))) {
+								if (active_midi_chan || (!active_midi_chan && active_chain == izmop && zmop_get_route_from(izmop, izmip))) {
 									// Active chain only
 									if (event_val)
 										pedal_sent[pedal] |= (1 << izmop);
@@ -1622,6 +1631,13 @@ int jack_process(jack_nframes_t nframes, void *arg) {
 			else if ((event_type == SYSTEM_EXCLUSIVE) && (zmop->flags & FLAG_ZMOP_DROPSYSEX)) {
 			 	continue;
 			}
+
+			// Update sent pedal flags
+			if (pedal < 4 && izmop < NUM_ZMOP_CHAINS)
+				if (event_val)
+					pedal_sent[pedal] |= (1 << izmop);
+				else
+					pedal_sent[pedal] &= ~(1 << izmop);
 
 			// Add processed event to MIDI output port buffer
 			zmop_push_event(zmop, ev);
