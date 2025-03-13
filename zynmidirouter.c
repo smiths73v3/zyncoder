@@ -47,7 +47,7 @@ int midi_learning_mode;					// To flag "MIDI learning" from UI => Is it needed?
 int8_t global_transpose;     			// All incoming (zmip) notes are transposed
 jack_nframes_t last_frame;				// Index of last frame in each jack cycle
 uint32_t pedal_sent[4];					// Bitwise flag indicating if CC value>0 sent to a chain zmop for each pedal type
-uint8_t reassert_pedal = 1;				// 1 to reassert pedal CC when switching active chain
+uint8_t reassert_pedal = 0;				// 1 to reassert pedal CC when switching active chain
 midi_filter_t midi_filter;
 struct zmip_st zmips[MAX_NUM_ZMIPS];
 struct zmop_st zmops[MAX_NUM_ZMOPS];
