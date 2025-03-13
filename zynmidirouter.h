@@ -323,7 +323,7 @@ struct zmop_st {
 	int8_t note_transpose[128];				// Note transpose array for managing pressed notes across transpose changes.
 	uint16_t last_pb_val[16];				// Last pitch-bending value. Do we need multi-channel tracking for MPE?
 
-	int n_connections;				// Quantity of jack connections (used for optimisation)
+	int n_connections;						// Quantity of jack connections (used for optimisation)
 };
 
 // MIDI output port (ZMOPs) management

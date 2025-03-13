@@ -47,7 +47,7 @@ int midi_learning_mode;					// To flag "MIDI learning" from UI => Is it needed?
 int8_t global_transpose;     			// All incoming (zmip) notes are transposed
 jack_nframes_t last_frame;				// Index of last frame in each jack cycle
 uint32_t pedal_sent[4];					// Bitwise flag indicating if CC value>0 sent to a chain zmop for each pedal type
-
+uint8_t reassert_pedal = 1;				// 1 to reassert pedal CC when switching active chain
 midi_filter_t midi_filter;
 struct zmip_st zmips[MAX_NUM_ZMIPS];
 struct zmop_st zmops[MAX_NUM_ZMOPS];
@@ -127,10 +127,13 @@ void set_active_chain(int izmop) {
 	}
 	if (izmop != active_chain) {
 		active_chain = izmop;
+		if (!reassert_pedal)
+			return;
 		if (izmop >= 0 && zmops[izmop].midi_chan >= 0) {
 			uint8_t buffer[3];
-			buffer[0] = 0xB0 + zmops[izmop].midi_chan;
-
+			if (zmops[izmop].midi_chan < 0 || zmops[izmop].midi_chans[zmops[izmop].midi_chan] < 0)
+				return;
+			buffer[0] = 0xB0 + zmops[izmop].midi_chans[zmops[izmop].midi_chan];
 			for (uint8_t pedal = 0; pedal < 4; ++pedal) {
 				if (pedal_sent[pedal] & (1 << izmop))
 					continue; // Don't resend pedal CC if already asserted for this chain zmop
@@ -485,11 +488,13 @@ int zmip_get_flag_cc_auto_mode(int iz) {
 int clear_cc_pedals(uint8_t izmip) {
 	uint8_t buffer[3];
 	buffer[2] = 0;
-	for (uint8_t izmop = 0; izmop < NUM_ZMOP_CHAINS; ++izmop) {
-		if (!zmop_get_route_from(izmop, izmip))
-			continue;
-		buffer[0] = 0xB0 + zmops[izmop].midi_chan;
-		for (uint8_t pedal = 0; pedal < 4; ++pedal) {
+	for (uint8_t pedal = 0; pedal < 4; ++pedal) {
+		for (uint8_t izmop = 0; izmop < NUM_ZMOP_CHAINS; ++izmop) {
+			if (!zmop_get_route_from(izmop, izmip))
+				continue;
+			if (zmops[izmop].midi_chan < 0 || zmops[izmop].midi_chans[zmops[izmop].midi_chan] < 0)
+				continue;
+			buffer[0] = 0xB0 + zmops[izmop].midi_chans[zmops[izmop].midi_chan];
 			if (pedal_sent[pedal] & (1 << izmop)) {
 				buffer[1] = pedal_cc[pedal];
 				if (!write_rb_midi_event(zmops[izmop].rbuffer, buffer, 3))
@@ -497,6 +502,9 @@ int clear_cc_pedals(uint8_t izmip) {
 				pedal_sent[pedal] &= ~(1 << izmop);
 			}
 		}
+		for (uint8_t midi_chan = 0; midi_chan < 16; ++midi_chan)
+			//!@todo May be refactored if optimise pedals
+			zmips[izmip].last_ctrl_val[midi_chan][pedal_cc[pedal]] = 0;
 	}
 	return 1;
 }
@@ -1311,7 +1319,6 @@ int jack_process(jack_nframes_t nframes, void *arg) {
 	uint8_t event_idev;
 	uint8_t event_type;
 	uint8_t event_chan;
-	uint8_t event_chan_translated;
 	uint8_t event_num;
 	uint8_t event_val;
 	uint32_t ui_event;
@@ -1514,11 +1521,10 @@ int jack_process(jack_nframes_t nframes, void *arg) {
 			}
 		}
 
-		//printf("ZynMidiRouter: Processing event from zmip %d, type %d, channel %d, translated to channel %d\n", izmip, event_type, event_chan, event_chan_translated);
+		//printf("ZynMidiRouter: Processing event from zmip %d, type %d, channel %d, translated to channel %d\n", izmip, event_type, event_chan);
 
 		// Send the processed message to configured output queues
 		uint8_t event_b0 = ev->buffer[0];
-		uint8_t event_chan_trans;
 		for (int izmop = 0; izmop < MAX_NUM_ZMOPS; ++izmop) {
 			zmop = zmops + izmop;
 			uint8_t pedal = 4;
@@ -1533,7 +1539,6 @@ int jack_process(jack_nframes_t nframes, void *arg) {
 
 			// Channel messages ...
 			if (event_type < SYSTEM_EXCLUSIVE) {
-				event_chan_trans = event_chan;
 				if (event_type == CTRL_CHANGE) {
 					for (pedal = 0; pedal < 4; ++pedal) {
 						if (event_num == pedal_cc[pedal])
@@ -1546,7 +1551,7 @@ int jack_process(jack_nframes_t nframes, void *arg) {
 					// ACTI => route events to active chain, translating channel as required  ...
 					if (zmip->flags & FLAG_ZMIP_ACTIVE_CHAIN) {
 						// If (active MIDI channel
-						if (((active_midi_chan && zmops[active_chain].midi_chan == zmop->midi_chan) ||
+						if ((active_midi_chan ||
 						// or active chain)
 						izmop == active_chain) &&
 						// and output midi channel is mapped => Send to active zmop's MIDI channel
@@ -1559,38 +1564,31 @@ int jack_process(jack_nframes_t nframes, void *arg) {
 										int xiz = (izmop + j) % NUM_ZMOP_CHAINS;
 										// If found a matching note-on for this note-off event on other chain
 										if (zmops[xiz].note_state[event_num] > 0 && zmops[xiz].midi_chan >= 0 && zmops[xiz].n_connections > 0  && zmops[xiz].route_from_zmips[izmip]) {
-											zmop =  zmops + xiz;
+											zmop = zmops + xiz;
 											break;
 										}
 									}
 								}
 							} else if (pedal < 4) {
-								if (active_midi_chan || active_chain == izmop && zmop_get_route_from(izmop, izmip)) {
-									// Active chain only
-									if (event_val)
-										pedal_sent[pedal] |= (1 << izmop);
-									else {
-										for (uint8_t j = 0; j < NUM_ZMOP_CHAINS; ++j) {
-											if (j != izmop && pedal_sent[pedal] & (1 << j))
-												zmop_send_ccontrol_change(j, zmops[j].midi_chan, pedal_cc[pedal], 0);
-										}
-										pedal_sent[pedal] = 0;
-									}
-								} else {
+								if (!event_val) {
+									if ((pedal_sent[pedal] & (1 << izmop)) == 0)
+										continue;
+								} else if (active_midi_chan && zmops[active_chain].midi_chan != zmop->midi_chan)
 									continue;
-								}
-							}
+							} else if (zmops[active_chain].midi_chan != zmop->midi_chan)
+								continue;
 							// Update event data with the translated MIDI channel
-							event_chan_trans = zmop->midi_chan;
-							ev->buffer[0] = (ev->buffer[0] & 0xF0) | (event_chan_trans & 0x0F);
-						}
-						// or discard message from not active zmops
-						else {
+							ev->buffer[0] = (ev->buffer[0] & 0xF0) | (zmop->midi_chan & 0x0F);
+						} else if (pedal < 4 && !event_val) {
+							if ((pedal_sent[pedal] & (1 << izmop)) == 0)
+								continue;
+							ev->buffer[0] = (ev->buffer[0] & 0xF0) | (zmop->midi_chan & 0x0F);
+						} else {
+							// or discard message from not active zmops
 							continue;
 						}
-					}
-					// MULTI => no translate, but filter MIDI channels not configured in zmop
-					else if (zmop->midi_chans[event_chan] == -1) {
+					} else if (zmop->midi_chans[event_chan] == -1) {
+						// MULTI => no translate, but filter MIDI channels not configured in zmop
 						continue;
 					}
 				}
@@ -1638,7 +1636,6 @@ int jack_process(jack_nframes_t nframes, void *arg) {
 					pedal_sent[pedal] |= (1 << izmop);
 				else
 					pedal_sent[pedal] &= ~(1 << izmop);
-
 			// Add processed event to MIDI output port buffer
 			zmop_push_event(zmop, ev);
 
@@ -1880,7 +1877,8 @@ int zmip_send_all_notes_off(uint8_t izmip) {
 					return 0;
 		}
 	}
-	clear_cc_pedals(izmip);
+	for (uint8_t i = 0; i < NUM_ZMIP_DEVS; ++i)
+		clear_cc_pedals(i);
 	return 1;
 }
 
@@ -1895,7 +1893,8 @@ int zmip_send_all_notes_off_chain(uint8_t izmip, uint8_t izmop) {
 	}
 	uint8_t note;
 	uint8_t chan = zmops[izmop].midi_chan;
-	if (chan < 0) chan = 0;
+	if (chan < 0)
+		chan = 0;
 	uint8_t buffer[3];
 	buffer[0] = 0x80 + (chan & 0x0F);
 	buffer[2] = 0;
