@@ -209,12 +209,8 @@ struct zmip_st {
 	uint32_t next_event;			// Index of the next event to be processed (not fake queues)
 	jack_midi_event_t event;		// Event currently being processed
 
-	uint8_t ctrl_mode[16][128];				// Controller mode for all 128 CCs x 16 chans
-	uint8_t ctrl_relmode_count[16][128];	// Counter array used for mode auto-detection
 	uint8_t last_ctrl_val[16][128];			// Last CC value tracked for each CC x 16 chans
 };
-
-static const uint8_t pedal_cc[] = {64, 66, 67, 69}; // List of CC that should be treated as pedals
 
 // MIDI Input port (ZMIPs) management
 int zmip_init(int iz, char *name, uint32_t flags);
@@ -224,17 +220,14 @@ int zmip_get_seq_index();
 int zmip_get_step_index();
 int zmip_get_int_index();
 int zmip_get_ctrl_index();
-int clear_cc_pedals(uint8_t izmip);
 
 // Flag management
 int zmip_set_flags(int iz, uint32_t flags);
 uint32_t zmip_get_flags(int iz);
 int zmip_has_flags(int iz, uint32_t flag);
-int zmop_set_flag_cc_auto_mode(int iz, uint8_t flag);
-uint8_t zmop_get_flag_cc_auto_mode(int iz);
 int zmip_set_flag_active_chain(int iz, uint8_t flag);
 int zmip_get_flag_active_chain(int iz);
-uint32_t get_cc_pedal(uint8_t pedal);
+
 // Routing
 int zmip_set_route_chains(int iz, int route);			// Route/un-route a MIDI input port (zmip) to/from *ALL* zmop chains
 
@@ -383,6 +376,15 @@ int zmop_get_cc_route(int iz, uint8_t *cc_route);
 // ----------------------------------------------------------------------------
 // This is called from jack process!!
 void zmop_push_event(struct zmop_st * zmop, jack_midi_event_t * ev); // Add event to MIDI output port
+
+//-----------------------------------------------------------------------------
+// Pedal management
+//-----------------------------------------------------------------------------
+
+static const uint8_t pedal_cc[] = {64, 66, 67, 69}; // List of CC that should be treated as pedals
+
+uint32_t get_cc_pedal(uint8_t pedal);
+int clear_cc_pedals(uint8_t izmip);
 
 //-----------------------------------------------------------------------------
 // Jack MIDI Process

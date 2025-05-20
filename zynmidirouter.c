@@ -386,8 +386,6 @@ int zmip_init(int iz, char *name, uint32_t flags) {
 	zmips[iz].event.time = 0xFFFFFFFF;
 	zmips[iz].event_count = 0;
 	zmips[iz].flags = flags;
-	memset(zmips[iz].ctrl_mode, CTRL_MODE_ABS, 16 * 128);
-	memset(zmips[iz].ctrl_relmode_count, 0, 16 * 128);
 	memset(zmips[iz].last_ctrl_val, 0, 16 * 128);
 
 	// Create direct input ring-buffer
@@ -465,50 +463,6 @@ int zmip_has_flags(int iz, uint32_t flags) {
 	return (zmips[iz].flags & flags) == flags;
 }
 
-int zmip_set_flag_cc_auto_mode(int iz, uint8_t flag) {
-	if (iz < 0 || iz >= MAX_NUM_ZMIPS) {
-		fprintf(stderr, "ZynMidiRouter: Bad input port index (%d).\n", iz);
-		return 0;
-	}
-	if (flag)
-		zmips[iz].flags |= (uint32_t)FLAG_ZMIP_CC_AUTO_MODE;
-	else
-		zmips[iz].flags &= ~(uint32_t)FLAG_ZMIP_CC_AUTO_MODE;
-	return 1;
-}
-
-int zmip_get_flag_cc_auto_mode(int iz) {
-	if (iz < 0 || iz >= MAX_NUM_ZMIPS) {
-		fprintf(stderr, "ZynMidiRouter: Bad output port index (%d).\n", iz);
-		return 0;
-	}
-	return (zmips[iz].flags & (uint32_t)FLAG_ZMIP_CC_AUTO_MODE) > 0;
-}
-
-int clear_cc_pedals(uint8_t izmip) {
-	uint8_t buffer[3];
-	buffer[2] = 0;
-	for (uint8_t pedal = 0; pedal < 4; ++pedal) {
-		for (uint8_t izmop = 0; izmop < NUM_ZMOP_CHAINS; ++izmop) {
-			if (!zmop_get_route_from(izmop, izmip))
-				continue;
-			if (zmops[izmop].midi_chan < 0 || zmops[izmop].midi_chans[zmops[izmop].midi_chan] < 0)
-				continue;
-			buffer[0] = 0xB0 + zmops[izmop].midi_chans[zmops[izmop].midi_chan];
-			if (pedal_sent[pedal] & (1 << izmop)) {
-				buffer[1] = pedal_cc[pedal];
-				if (!write_rb_midi_event(zmops[izmop].rbuffer, buffer, 3))
-					return 0;
-				pedal_sent[pedal] &= ~(1 << izmop);
-			}
-		}
-		for (uint8_t midi_chan = 0; midi_chan < 16; ++midi_chan)
-			//!@todo May be refactored if optimise pedals
-			zmips[izmip].last_ctrl_val[midi_chan][pedal_cc[pedal]] = 0;
-	}
-	return 1;
-}
-
 int zmip_set_flag_active_chain(int iz, uint8_t flag) {
 	if (iz < 0 || iz >= MAX_NUM_ZMIPS) {
 		fprintf(stderr, "ZynMidiRouter: Bad input port number (%d).\n", iz);
@@ -529,12 +483,6 @@ int zmip_get_flag_active_chain(int iz) {
 		return 0;
 	}
 	return zmips[ZMIP_DEV0 + iz].flags & (uint32_t)FLAG_ZMIP_ACTIVE_CHAIN;
-}
-
-uint32_t get_cc_pedal(uint8_t pedal) {
-	if (pedal < 4)
-		return pedal_sent[pedal];
-	return 0;
 }
 
 //Route/unroute a MIDI input device (zmip) to *ALL* chain zmops
@@ -1124,6 +1072,41 @@ int zmop_get_cc_route(int iz, uint8_t *cc_route) {
 }
 
 //-----------------------------------------------------------------------------
+// Pedal Management
+//-----------------------------------------------------------------------------
+
+uint32_t get_cc_pedal(uint8_t pedal) {
+	if (pedal < 4)
+		return pedal_sent[pedal];
+	return 0;
+}
+
+// Jofemodo: I'm not sure this is very nice ...
+int clear_cc_pedals(uint8_t izmip) {
+	uint8_t buffer[3];
+	buffer[2] = 0;
+	for (uint8_t pedal = 0; pedal < 4; ++pedal) {
+		for (uint8_t izmop = 0; izmop < NUM_ZMOP_CHAINS; ++izmop) {
+			if (!zmop_get_route_from(izmop, izmip))
+				continue;
+			if (zmops[izmop].midi_chan < 0 || zmops[izmop].midi_chans[zmops[izmop].midi_chan] < 0)
+				continue;
+			buffer[0] = 0xB0 + zmops[izmop].midi_chans[zmops[izmop].midi_chan];
+			if (pedal_sent[pedal] & (1 << izmop)) {
+				buffer[1] = pedal_cc[pedal];
+				if (!write_rb_midi_event(zmops[izmop].rbuffer, buffer, 3))
+					return 0;
+				pedal_sent[pedal] &= ~(1 << izmop);
+			}
+		}
+		for (uint8_t midi_chan = 0; midi_chan < 16; ++midi_chan)
+			//!@todo May be refactored if optimise pedals
+			zmips[izmip].last_ctrl_val[midi_chan][pedal_cc[pedal]] = 0;
+	}
+	return 1;
+}
+
+//-----------------------------------------------------------------------------
 // Jack MIDI processing
 //-----------------------------------------------------------------------------
 
@@ -1509,13 +1492,6 @@ int jack_process(jack_nframes_t nframes, void *arg) {
 				if (zmop->flags & FLAG_ZMOP_CHAN_TRANSFILTER && zmop->midi_chan >= 0) {
 					// ACTI => route events to active chain, translating channel as required  ...
 					if (zmip->flags & FLAG_ZMIP_ACTIVE_CHAIN) {
-
-
-						// If (active MIDI channel or active chain)
-
-						// and output midi channel is mapped => Send to active zmop's MIDI channel
-						zmop->midi_chans[zmop->midi_chan] >= 0) {
-
 						// If (active MIDI channel
 						if (((active_midi_chan && zmops[active_chain].midi_chan == zmop->midi_chan)
 						// or active chain)
