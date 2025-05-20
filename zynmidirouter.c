@@ -509,16 +509,16 @@ int clear_cc_pedals(uint8_t izmip) {
 	return 1;
 }
 
-int zmip_set_flag_active_chain(int izmip, uint8_t flag) {
-	if (izmip < 0 || izmip >= MAX_NUM_ZMIPS) {
-		fprintf(stderr, "ZynMidiRouter: Bad input port number (%d).\n", izmip);
+int zmip_set_flag_active_chain(int iz, uint8_t flag) {
+	if (iz < 0 || iz >= MAX_NUM_ZMIPS) {
+		fprintf(stderr, "ZynMidiRouter: Bad input port number (%d).\n", iz);
 		return 0;
 	}
 	if (flag)
-		zmips[ZMIP_DEV0 + izmip].flags |= (uint32_t)FLAG_ZMIP_ACTIVE_CHAIN;
+		zmips[ZMIP_DEV0 + iz].flags |= (uint32_t)FLAG_ZMIP_ACTIVE_CHAIN;
 	else
-		zmips[ZMIP_DEV0 + izmip].flags &= ~(uint32_t)FLAG_ZMIP_ACTIVE_CHAIN;
-	clear_cc_pedals(izmip);
+		zmips[ZMIP_DEV0 + iz].flags &= ~(uint32_t)FLAG_ZMIP_ACTIVE_CHAIN;
+	clear_cc_pedals(iz);
 	//fprintf(stderr, "ZynMidiRouter: Flags for zmip (%d) => %x\n", iz, zmips[ZMIP_DEV0 + iz].flags);
 	return 1;
 }
@@ -806,23 +806,23 @@ int zmop_get_flag_chan_transfilter(int iz) {
 
 // MIDI channel management
 
-int zmop_reset_midi_chans(int izmip) {
-	if (izmip < 0 || izmip >= MAX_NUM_ZMOPS) {
-		fprintf(stderr, "ZynMidiRouter: Bad output port index (%d).\n", izmip);
+int zmop_reset_midi_chans(int iz) {
+	if (iz < 0 || iz >= MAX_NUM_ZMOPS) {
+		fprintf(stderr, "ZynMidiRouter: Bad output port index (%d).\n", iz);
 		return 0;
 	}
 	int i;
 	for (i = 0; i < 16; i++) {
-		zmops[izmip].midi_chans[i] = -1;
+		zmops[iz].midi_chans[i] = -1;
 	}
-	zmops[izmip].midi_chan = -1;
-	zmop_set_flag_chan_transfilter(izmip, 1);
+	zmops[iz].midi_chan = -1;
+	zmop_set_flag_chan_transfilter(iz, 1);
 	return 1;
 }
 
-int zmop_set_midi_chan(int izmip, int midi_chan) {
-	if (izmip < 0 || izmip >= MAX_NUM_ZMOPS) {
-		fprintf(stderr, "ZynMidiRouter: Bad output port index (%d).\n", izmip);
+int zmop_set_midi_chan(int iz, int midi_chan) {
+	if (iz < 0 || iz >= MAX_NUM_ZMOPS) {
+		fprintf(stderr, "ZynMidiRouter: Bad output port index (%d).\n", iz);
 		return 0;
 	}
 	if (midi_chan < 0 || midi_chan >= 16) {
@@ -831,12 +831,12 @@ int zmop_set_midi_chan(int izmip, int midi_chan) {
 	}
 	int i;
 	for (i = 0; i < 16; i++) {
-		zmops[izmip].midi_chans[i] = -1;
+		zmops[iz].midi_chans[i] = -1;
 	}
-	zmops[izmip].midi_chan = midi_chan;
-	zmops[izmip].midi_chans[midi_chan] = midi_chan;
-	zmop_set_flag_chan_transfilter(izmip, 1);
-	clear_cc_pedals(izmip);
+	zmops[iz].midi_chan = midi_chan;
+	zmops[iz].midi_chans[midi_chan] = midi_chan;
+	zmop_set_flag_chan_transfilter(iz, 1);
+	clear_cc_pedals(iz);
 	return 1;
 }
 
@@ -1424,48 +1424,6 @@ int jack_process(jack_nframes_t nframes, void *arg) {
 
 		// MIDI CC messages
 		if (event_type == CTRL_CHANGE) {
-			//Auto Relative-Mode
-			if (zmip->flags & FLAG_ZMIP_CC_AUTO_MODE) {
-				if (zmip->ctrl_mode[event_chan][event_num] == CTRL_MODE_REL_2) {
-					// Change to absolute mode
-					if (zmip->ctrl_relmode_count[event_chan][event_num] > 1) {
-						zmip->ctrl_mode[event_chan][event_num] = CTRL_MODE_ABS;
-						//fprintf(stderr, "Changing Back to Absolute Mode ...\n");
-					} else if (event_val == 64) {
-						// Every 2 messages, rel-mode mark. Between 2 marks, can't have a val of 64.
-						if (zmip->ctrl_relmode_count[event_chan][event_num] == 1) {
-							zmip->ctrl_relmode_count[event_chan][event_num] = 0;
-							goto event_processed;
-						} else {
-							zmip->ctrl_mode[event_chan][event_num] = CTRL_MODE_ABS;
-							//fprintf(stderr, "Changing Back to Absolute Mode ...\n");
-						}
-					} else {
-						int16_t last_val = zmip->last_ctrl_val[event_chan][event_num];
-						int16_t new_val = last_val + (int16_t)event_val - 64;
-						if (new_val > 127) new_val = 127;
-						if (new_val < 0) new_val = 0;
-						ev->buffer[2] = event_val = (uint8_t)new_val;
-						zmip->ctrl_relmode_count[event_chan][event_num]++;
-						//fprintf(stderr, "Relative Mode! => val=%d\n",new_val);
-					}
-				}
-
-				//Absolute Mode
-				if (zmip->ctrl_mode[event_chan][event_num] == CTRL_MODE_ABS) {
-					if (event_val == 64) {
-						//fprintf(stderr, "Tenting Relative Mode ...\n");
-						zmip->ctrl_mode[event_chan][event_num] = CTRL_MODE_REL_2;
-						zmip->ctrl_relmode_count[event_chan][event_num] = 0;
-						// Here we lost a tick when an absolute knob moves fast and touch val=64,
-						// but if we want auto-detect rel-mode and change softly to it, it's the only way.
-						int16_t last_val = zmip->last_ctrl_val[event_chan][event_num];
-						if (abs(last_val - event_val) > 4)
-							goto event_processed;
-					}
-				}
-			}
-
 			//Save last controller value ...
 			zmip->last_ctrl_val[event_chan][event_num] = event_val;
 
@@ -1539,6 +1497,7 @@ int jack_process(jack_nframes_t nframes, void *arg) {
 
 			// Channel messages ...
 			if (event_type < SYSTEM_EXCLUSIVE) {
+				// Detect pedals
 				if (event_type == CTRL_CHANGE) {
 					for (pedal = 0; pedal < 4; ++pedal) {
 						if (event_num == pedal_cc[pedal])
@@ -1550,10 +1509,17 @@ int jack_process(jack_nframes_t nframes, void *arg) {
 				if (zmop->flags & FLAG_ZMOP_CHAN_TRANSFILTER && zmop->midi_chan >= 0) {
 					// ACTI => route events to active chain, translating channel as required  ...
 					if (zmip->flags & FLAG_ZMIP_ACTIVE_CHAIN) {
+
+
+						// If (active MIDI channel or active chain)
+
+						// and output midi channel is mapped => Send to active zmop's MIDI channel
+						zmop->midi_chans[zmop->midi_chan] >= 0) {
+
 						// If (active MIDI channel
-						if ((active_midi_chan ||
+						if (((active_midi_chan && zmops[active_chain].midi_chan == zmop->midi_chan)
 						// or active chain)
-						izmop == active_chain) &&
+						|| izmop == active_chain) &&
 						// and output midi channel is mapped => Send to active zmop's MIDI channel
 						zmop->midi_chans[zmop->midi_chan] >= 0) {
 							// NOTE-OFF => Release pressed notes across active chain changes
