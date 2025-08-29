@@ -180,7 +180,27 @@ void reset_midi_filter_cc_map();
 #define FLAG_ZMIP_SYSTEM 16
 #define FLAG_ZMIP_SYSTEM_RT 32
 
-#define ZMIP_DEV_FLAGS (FLAG_ZMIP_UI|FLAG_ZMIP_FILTER|FLAG_ZMIP_ACTIVE_CHAIN|FLAG_ZMIP_SYSTEM|FLAG_ZMIP_SYSTEM_RT)
+//architecture detection
+#if defined(__x86_64__) || defined(_M_X64)
+#define ZYNMIDI_ARCH_X86_64
+#elif defined(__aarch64__)
+#define ZYNMIDI_ARCH_ARM64
+#elif defined(__arm__) || defined(_M_ARM)
+#define ZYNMIDI_ARCH_ARM
+#elif defined(__i386__) || defined(_M_IX86)
+#define ZYNMIDI_ARCH_X86
+#else
+#define ZYNMIDI_ARCH_UNKNOWN
+#endif
+
+#define ZMIP_DEV_FLAGS_BASE (FLAG_ZMIP_UI|FLAG_ZMIP_FILTER|FLAG_ZMIP_SYSTEM|FLAG_ZMIP_SYSTEM_RT)
+
+#if(defined(ZYNMIDI_ARCH_X86_64) || defined(ZYNMIDI_ARCH_X86))
+#   define ZMIP_DEV_FLAGS (ZMIP_DEV_FLAGS_MULTI_ORIG)
+#else
+#   define ZMIP_DEV_FLAGS (ZMIP_DEV_FLAGS_ORIG|FLAG_ZMIP_ACTIVE_CHAIN) //Active-chain for non-x86_64 architectures
+#endif
+
 #define ZMIP_SEQ_FLAGS (FLAG_ZMIP_UI)
 #define ZMIP_STEP_FLAGS (FLAG_ZMIP_UI|FLAG_ZMIP_FILTER)
 #define ZMIP_CTRL_FLAGS (FLAG_ZMIP_UI)
