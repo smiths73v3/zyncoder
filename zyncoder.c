@@ -740,7 +740,9 @@ void zyncoder_rbpi_ISR(uint8_t i) {
 	if (i>=MAX_NUM_ZYNCODERS) return;
 	zyncoder_t *zcdr = zyncoders + i;
 	if (zcdr->enabled==0) return;
+#   if !defined( DUMMY_ENCODERS ) && !defined( EMULATOR_ENCODERS )
 	update_zyncoder(i, (uint8_t)gpiod_line_get_value(zcdr->line_a), (uint8_t)gpiod_line_get_value(zcdr->line_b));
+#   endif // !Dummy Encoders and !Emulator Encoders	
 }
 
 void zyncoder_rbpi_ISR_0() { zyncoder_rbpi_ISR(0); }
