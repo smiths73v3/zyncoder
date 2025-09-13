@@ -242,7 +242,7 @@ else ()
 		add_library(zyncore SHARED zyncore.c zyncontrol.h zyncontrol_vx.c zynpot.h zynpot.c zynrv112.h zynrv112.c zynads1115.h zynads1115.c zynmcp23017.h zynmcp23017.c zynmcp23008.h zynmcp23008.c zyncoder.h zyncoder.c zynmidirouter.h zynmidirouter.c zynmaster.h zynmaster.c wiringPiI2C.h wiringPiI2C.c gpiod_callback.h gpiod_callback.c)
 		target_link_libraries(zyncore gpiod jack lo)
 	else()
-		add_library(zyncore SHARED zyncore.c zyncontrol.h zyncontrol_vx.c zynpot.h zynpot.c zynrv112.h zynrv112.c zynads1115.h zynads1115.c zynmidirouter.h zynmidirouter.c zynmaster.h zynmaster.c wiringPiI2C.h wiringPiI2C.c)
+		add_library(zyncore SHARED zyncore.c zyncontrol.h zyncontrol_vx.c zynpot.h zynpot.c zynrv112.h zynrv112.c zynads1115.h zynads1115.c zyncoder.h zyncoder.c zynmidirouter.h zynmidirouter.c zynmaster.h zynmaster.c wiringPiI2C.h wiringPiI2C.c)
 		target_link_libraries(zyncore jack lo)
 	endif()
 
