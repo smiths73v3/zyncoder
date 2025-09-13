@@ -42,8 +42,10 @@ struct gpiod_chip *gpio_chip = NULL;
 // Array of callback structures
 struct gpiod_callback rpi_gpiod_callbacks[NUM_GPIO_PINS];
 
+#if !defined( DUMMY_ENCODERS ) && !defined( EMULATOR_ENCODERS )
 // Bulk structure for callback lines
 struct gpiod_line_bulk cb_line_bulk;
+#endif // !Dummy Encoders and !Emulator Encoders
 
 int end_callback_thread_flag = 0;
 pthread_t callback_thread_tid;
@@ -179,9 +181,11 @@ int gpiod_line_unregister_callback(struct gpiod_line *line) {
 void * gpiod_callbacks_thread(void *arg) {
 	end_callback_thread_flag = 0;
 	struct timespec ts = { 1, 0 };
+#   if !defined( DUMMY_ENCODERS ) && !defined( EMULATOR_ENCODERS )	
 	struct gpiod_line_bulk event_bulk;
 	struct gpiod_line *line;
 	struct gpiod_line_event event;
+#   endif // !Dummy Encoders and !Emulator Encoders
 	int ret = 0;
 	int pin;
 	int i;
