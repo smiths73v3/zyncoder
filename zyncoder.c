@@ -656,7 +656,9 @@ void zynswitch_rbpi_ISR(uint8_t i) {
 	if (i>=MAX_NUM_ZYNSWITCHES) return;
 	zynswitch_t *zsw = zynswitches + i;
 	if (zsw->enabled==0) return;
+#   if !defined( DUMMY_ENCODERS ) && !defined( EMULATOR_ENCODERS )
 	update_zynswitch(i, (uint8_t)gpiod_line_get_value(zsw->line));
+#   endif // !Dummy Encoders and !Emulator Encoders	
 }
 
 void zynswitch_rbpi_ISR_0() { zynswitch_rbpi_ISR(0); }
