@@ -134,6 +134,8 @@ int gpiod_init_callbacks() {
 		rpi_gpiod_callbacks[i].callback = NULL;
 	}
 
+
+#   if !defined( DUMMY_ENCODERS ) && !defined( EMULATOR_ENCODERS )	
 	// Determine the GPIO chip to use and initialize it
 	char * gpio_chip_device = getenv ("GPIO_CHIP_DEVICE");
 	if (!gpio_chip_device) gpio_chip_device = DEFAULT_GPIO_CHIP_DEVICE;
@@ -143,10 +145,12 @@ int gpiod_init_callbacks() {
 		gpio_chip = NULL;
 		return 0;
 	}
+#   endif // !Dummy Encoders and !Emulator Encoders
 	return 1;
 }
 
 int gpiod_line_register_callback(struct gpiod_line *line, void (*callback)(void)) {
+#   if !defined( DUMMY_ENCODERS ) && !defined( EMULATOR_ENCODERS )	
 	if (line) {
 		int pin = gpiod_line_offset(line);
 		rpi_gpiod_callbacks[pin].pin = pin;
@@ -155,10 +159,12 @@ int gpiod_line_register_callback(struct gpiod_line *line, void (*callback)(void)
 		//fprintf(stderr, "ZynCore->gpiod_line_register_callback(): Registered callback on pin %d\n", pin);
 		return 1;
 	}
+#   endif // !Dummy Encoders and !Emulator Encoders
 	return 0;
 }
 
 int gpiod_line_unregister_callback(struct gpiod_line *line) {
+#   if !defined( DUMMY_ENCODERS ) && !defined( EMULATOR_ENCODERS )	
 	if (line) {
 		int pin = gpiod_line_offset(line);
 		rpi_gpiod_callbacks[pin].pin = -1;
@@ -166,6 +172,7 @@ int gpiod_line_unregister_callback(struct gpiod_line *line) {
 		rpi_gpiod_callbacks[pin].callback = NULL;
 		return 1;
 	}
+#   endif // !Dummy Encoders and !Emulator Encoders
 	return 0;
 }
 
@@ -179,6 +186,7 @@ void * gpiod_callbacks_thread(void *arg) {
 	int pin;
 	int i;
 	while (!end_callback_thread_flag) {
+#     if !defined( DUMMY_ENCODERS ) && !defined( EMULATOR_ENCODERS )	
 		ret = gpiod_line_event_wait_bulk(&cb_line_bulk, &ts, &event_bulk);
 		if (ret > 0) {
 			for (i=0; i<event_bulk.num_lines; i++) {
@@ -189,6 +197,11 @@ void * gpiod_callbacks_thread(void *arg) {
 				//	fprintf(stderr,"ZynCore->gpiod_callback_thread(): Got event on pin '%d'!\n", pin);
 				rpi_gpiod_callbacks[pin].callback();
 			}
+#     else
+		ret = 0;
+		if (ret > 0) {
+			// Nothing to do
+#     endif // !Dummy Encoders and !Emulator Encoders
 		} else if (ret < 0) {
 			fprintf(stderr, "ZynCore->gpiod_callback_thread(): Error while processing GPIO events!\n");
 			break;
@@ -201,6 +214,7 @@ void * gpiod_callbacks_thread(void *arg) {
 
 int gpiod_start_callbacks() {
 	int i, count;
+#   if !defined( DUMMY_ENCODERS ) && !defined( EMULATOR_ENCODERS )		
 	gpiod_line_bulk_init(&cb_line_bulk);
 	for (i=0, count=0; i<NUM_GPIO_PINS; i++) {
 		struct gpiod_line *line = rpi_gpiod_callbacks[i].line;
@@ -209,6 +223,9 @@ int gpiod_start_callbacks() {
 			count++;
 		}
 	}
+#   else
+	count = 0;
+#   endif // !Dummy Encoders and !Emulator Encoders
 	if (count > 0) {
 		// Start callback thread
 		int err = pthread_create(&callback_thread_tid, NULL, &gpiod_callbacks_thread, NULL);
