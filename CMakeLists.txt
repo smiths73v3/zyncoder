@@ -8,10 +8,7 @@ include(CheckLibraryExists)
 link_directories(/usr/local/lib)
 
 if ( DEFINED ENV{ZYNCODER_MULTITIMBRAL_DEFAULT} )
-	add_definitions(-DMULTITIMBRAL_DEFAULT=1)
-	message("++ Defined MULTITIMBRAL_DEFAULT TRUE")
-else()
-	add_definitions(-DMULTITIMBRAL_DEFAULT=0)
+	add_definitions(-DMULTITIMBRAL_DEFAULT=$ENV{ZYNCODER_MULTITIMBRAL_DEFAULT)
 endif()
 
 if (("$ENV{ZYNTHIAN_WIRING_LAYOUT}" STREQUAL "MCP23017_ENCODERS")
