@@ -185,6 +185,7 @@ void reset_midi_filter_cc_map();
 #define MAX_NUM_ZMIPS 29
 #define NUM_ZMIP_DEVS 24
 
+#define FLAG_ZMIP_NONE 0
 #define FLAG_ZMIP_UI 1
 #define FLAG_ZMIP_FILTER 1
 #define FLAG_ZMIP_ACTIVE_CHAIN 4
@@ -192,7 +193,7 @@ void reset_midi_filter_cc_map();
 
 //set in by defining ZYNCODER_MULTITIMBRAL_DEFAULT environment variable
 #if defined(MULTITIMBRAL_DEFAULT) && MULTITIMBRAL_DEFAULT
-	#define ZMIP_DEV_ACTIVE_OR_MULTITIMBRAL
+	#define ZMIP_DEV_ACTIVE_OR_MULTITIMBRAL FLAG_ZMIP_NONE
 #else
 	#define ZMIP_DEV_ACTIVE_OR_MULTITIMBRAL FLAG_ZMIP_ACTIVE_CHAIN
 #endif
