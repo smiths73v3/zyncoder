@@ -190,11 +190,14 @@ void reset_midi_filter_cc_map();
 #define FLAG_ZMIP_ACTIVE_CHAIN 4
 #define FLAG_ZMIP_DIRECTIN 8
 
-//smiths73v3 compile default settings for x86_64 as multi-timbral
-//Todo: make this configurable at compile time, possibly runtime based upon admin menu
-#define ZMIP_DEV_FLAGS_ORIG (FLAG_ZMIP_UI|FLAG_ZMIP_FILTER|FLAG_ZMIP_ACTIVE_CHAIN) // Active chain by default
-#define ZMIP_DEV_FLAGS_MULTI_DEFAULT (FLAG_ZMIP_UI|FLAG_ZMIP_FILTER) // Multi-timbral by default
-#define ZMIP_DEV_FLAGS ZMIP_DEV_FLAGS_MULTI_DEFAULT
+//set in by defining ZYNCODER_MULTITIMBRAL_DEFAULT environment variable
+#if defined(MULTITIMBRAL_DEFAULT) && MULTITIMBRAL_DEFAULT
+	#define ZMIP_DEV_ACTIVE_OR_MULTITIMBRAL
+#else
+	#define ZMIP_DEV_ACTIVE_OR_MULTITIMBRAL FLAG_ZMIP_ACTIVE_CHAIN
+#endif
+#define ZMIP_DEV_FLAGS (FLAG_ZMIP_UI|FLAG_ZMIP_FILTER|ZMIP_DEV_ACTIVE_OR_MULTITIMBRAL)
+
 
 #define ZMIP_SEQ_FLAGS (FLAG_ZMIP_UI)
 #define ZMIP_STEP_FLAGS (FLAG_ZMIP_UI|FLAG_ZMIP_FILTER)
